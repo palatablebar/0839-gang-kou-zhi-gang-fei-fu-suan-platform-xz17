@@ -18,6 +18,14 @@ MESSAGES = {
     "GATE_BLOCKED": "存在阻断项，不能签发",
     "NOT_APPROVED": "批次尚未签发",
     "BAD_REQUEST": "请求内容不完整",
+    "RUN_ID_REQUIRED": "缺少批次编号",
+    "HANDOVER_ID_REQUIRED": "缺少交接分账编号",
+    "HANDOVER_DATE_REQUIRED": "至少需要一份交接记录日期",
+    "CONTAINER_REQUIRED": "请选择交接箱子",
+    "CONTAINER_NOT_FOUND": "批次中找不到可复算箱子",
+    "HANDOVER_NOT_FOUND": "交接分账不存在",
+    "DAY_CHARGE_CONFLICT": "同一日费已按不同金额签发",
+    "DAY_OWNER_CONFLICT": "同一日费已签发给另一货主",
 }
 
 

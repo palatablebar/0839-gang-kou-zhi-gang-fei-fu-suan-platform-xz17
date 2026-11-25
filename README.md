@@ -23,5 +23,6 @@ docker compose config --quiet
 2. 选择 `dirty` 样例观察坏行和隔离原因。
 3. 换 `clean` 样例执行批次，填写复核意见后签发。
 4. 下载证据 JSON，核对来源摘要、指标和签发版本。
+5. 在“交接分账”中填写两份交接记录日期并签发；争议日费自动待定，重试不会重复收取同一天费用。
 
 业务规则见 `docs/BUSINESS-RULES.md`，字段定义见 `docs/DATA-DICTIONARY.md`。

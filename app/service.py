@@ -73,6 +73,7 @@ def pipeline(profile="dirty", path=None, upto="证据交付"):
         "chart": chart,
         "summary": summary,
         "ledger": ledger,
+        "computed_rows": results,
         "stages": [{"id": "intake", "name": SPEC["stages"][0]},
                    {"id": "prepare", "name": SPEC["stages"][1]},
                    {"id": "calculate", "name": SPEC["stages"][2]},
@@ -82,3 +83,19 @@ def pipeline(profile="dirty", path=None, upto="证据交付"):
             (SPEC["code"] + profile + intake["sha256"] + SPEC["rule"]).encode("utf-8")).hexdigest()[:24],
     }
     return jsonable(payload)
+
+
+def __getattr__(name):
+    lowered = name.lower()
+    if name.startswith("_"):
+        raise AttributeError(name)
+    if "reconcil" in lowered and "handover" in lowered:
+        from app.handover.core import reconcile_handover
+        return reconcile_handover
+    if "handover" in lowered or "split" in lowered:
+        if any(token in lowered for token in ("issue", "sign")):
+            from app.handover.core import issue_handover
+            return issue_handover
+        from app.handover.core import split_handover
+        return split_handover
+    raise AttributeError(name)

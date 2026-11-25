@@ -33,3 +33,15 @@ def serialize(row):
     payload.update(run_id=row["id"], status=row["status"], revision=row["revision"],
                    comment=row["comment"], created_at=row["created_at"])
     return payload
+
+
+def __getattr__(name):
+    lowered = name.lower()
+    if name.startswith("_") or "handover" not in lowered:
+        raise AttributeError(name)
+    from app.handover.service import issue_existing, issue_for_run, preview_for_run
+    if "preview" in lowered:
+        return preview_for_run
+    if "existing" in lowered or "retry" in lowered:
+        return issue_existing
+    return issue_for_run

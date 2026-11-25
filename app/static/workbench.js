@@ -1,5 +1,5 @@
 (function () {
-  var state = { payload: null, kind: 'bars', run: null, approved: false };
+  var state = { payload: null, kind: 'bars', run: null, approved: false, handover: null };
   var $ = function (id) { return document.getElementById(id); };
   function esc(value) {
     return String(value === null || value === undefined ? '' : value).replace(/[&<>"']/g, function (ch) {
@@ -93,6 +93,7 @@
       state.run = run;
       state.approved = run.status === 'APPROVED';
       render(run);
+      populateHandover(run);
       $('run-status').textContent = run.status + ' · rev ' + run.revision;
       $('revision').textContent = 'rev ' + run.revision;
       $('sign').disabled = run.summary.REJECT > 0 || state.approved;
@@ -119,6 +120,96 @@
       if (state.approved) $('download').href = '/api/runs/' + run.run_id + '/evidence';
     } catch (error) { setNotice(error.message); }
   }
+  function populateHandover(run) {
+    var rows = (run && (run.computed_rows || run.rows)) || [];
+    var ids = Array.from(new Set(rows.map(function (row) { return row.container_id; }).filter(Boolean)));
+    $('hv-container-options').innerHTML = ids.map(function (id) { return '<option value="' + esc(id) + '"></option>'; }).join('');
+    $('hv-preview').disabled = !run;
+    $('hv-issue').disabled = !run;
+  }
+  function handoverBody() {
+    var dates = [$('hv-date-1').value, $('hv-date-2').value].filter(Boolean);
+    return {
+      container_id: $('hv-container').value.trim(),
+      old_owner: $('hv-old').value.trim() || '旧货主',
+      new_owner: $('hv-new').value.trim() || '新货主',
+      first_handover_date: dates[0] || null,
+      second_handover_date: dates[1] || null,
+      handover_dates: dates
+    };
+  }
+  function cents(value) { return (Number(value || 0)).toLocaleString('zh-CN') + ' 分'; }
+  function ownerLabel(role, h) {
+    if (role === 'old_owner') return '旧货主 · ' + esc(h.old_owner || '');
+    if (role === 'new_owner') return '新货主 · ' + esc(h.new_owner || '');
+    return '日期争议/待定';
+  }
+  function renderHandover(h) {
+    state.handover = h;
+    if (!h) { $('hv-result').innerHTML = '<p class="empty">暂无分账结果</p>'; return; }
+    var rec = h.reconciliation || {};
+    var rows = h.days || h.lines || [];
+    var summary = [
+      ['整箱复算额', h.whole_container_cents || h.total_cents],
+      ['旧货主已签', h.signed_old_owner_cents],
+      ['新货主已签', h.signed_new_owner_cents],
+      ['两家已签合计', h.signed_cents],
+      ['待定费用', h.pending_cents],
+      ['对账差额', rec.difference_cents]
+    ];
+    var html = '<div class="handover-summary">' + summary.map(function (row) {
+      return '<div class="ledger-row"><span>' + row[0] + '</span><strong>' + esc(cents(row[1])) + '</strong></div>';
+    }).join('') + '</div>';
+    html += '<p class="handover-balance ' + (rec.balanced ? 'check-ok' : 'check-bad') + '">' +
+      (rec.balanced ? '对账平衡：' : '对账不平衡：') + esc(rec.formula || '') + '</p>';
+    html += '<div class="table-wrap"><table><thead><tr>' +
+      '<th>日费日期</th><th>全局计费日</th><th class="num">日费率</th><th class="num">金额</th><th>归属</th><th>状态</th><th>签发号</th>' +
+      '</tr></thead><tbody>' + rows.map(function (day) {
+        return '<tr>' +
+          '<td>' + esc(day.date) + '</td>' +
+          '<td>' + esc(day.day_number || day.charge_day || '') + '</td>' +
+          '<td class="num">' + esc(cents(day.rate_cents)) + '</td>' +
+          '<td class="num">' + esc(cents(day.amount_cents)) + '</td>' +
+          '<td>' + ownerLabel(day.owner_role || day.assignment, h) + '</td>' +
+          '<td><span class="verdict" data-v="' + (day.status === 'SIGNED' ? 'PASS' : (day.status === 'DISPUTED' ? 'REJECT' : 'REVIEW')) + '">' + esc(day.status) + '</span></td>' +
+          '<td><small>' + esc(day.charge_id || '') + '</small></td>' +
+        '</tr>';
+      }).join('') + '</tbody></table></div>';
+    $('hv-result').innerHTML = html;
+    $('hv-retry').hidden = !h.handover_id;
+  }
+  async function previewHandover() {
+    if (!state.run) return;
+    try {
+      setNotice('');
+      var h = await request('/api/runs/' + state.run.run_id + '/handovers/preview', {
+        method: 'POST', body: JSON.stringify(handoverBody())
+      });
+      renderHandover(h);
+    } catch (error) { setNotice(error.message); }
+  }
+  async function issueHandover() {
+    if (!state.run) return;
+    try {
+      setNotice('');
+      $('hv-issue').disabled = true;
+      var h = await request('/api/runs/' + state.run.run_id + '/handovers', {
+        method: 'POST', body: JSON.stringify(handoverBody())
+      });
+      renderHandover(h);
+      setNotice(h.reconciliation && h.reconciliation.balanced ? '交接分账已签发，争议日费已待定' : '交接分账对账异常');
+    } catch (error) { setNotice(error.message); }
+    finally { $('hv-issue').disabled = false; }
+  }
+  async function retryHandover() {
+    if (!state.handover || !state.handover.handover_id) return;
+    try {
+      setNotice('');
+      var h = await request('/api/handovers/' + state.handover.handover_id + '/issue', {method: 'POST', body: '{}'});
+      renderHandover(h);
+      setNotice('重试完成：同一天费用未重复签发');
+    } catch (error) { setNotice(error.message); }
+  }
   async function boot() {
     try {
       var catalog = await request('/api/catalog');
@@ -133,11 +224,16 @@
     $('sign').addEventListener('click', function () { review('APPROVED'); });
     $('hold').addEventListener('click', function () { review('HELD'); });
     $('profile').addEventListener('change', function () {
-      state.run = null; state.approved = false;
+      state.run = null; state.approved = false; state.handover = null;
       $('sign').disabled = true; $('hold').disabled = true; $('download').hidden = true;
+      $('hv-preview').disabled = true; $('hv-issue').disabled = true; $('hv-retry').hidden = true;
+      $('hv-result').innerHTML = '<p class="empty">执行批次后，填写两份交接记录中的日期；无争议日期会签发，争议日期保留为待定费用。</p>';
       $('run-status').textContent = '未执行批次'; $('revision').textContent = 'rev 0';
       loadStage('intake');
     });
+    $('hv-preview').addEventListener('click', previewHandover);
+    $('hv-issue').addEventListener('click', issueHandover);
+    $('hv-retry').addEventListener('click', retryHandover);
   }
   document.addEventListener('DOMContentLoaded', boot);
 })();

@@ -39,6 +39,38 @@
         </div>
       </div>
     </article>
+    <article class="panel panel-wide" id="panel-handover">
+      <div class="panel-head">
+        <h2>交接分账</h2>
+        <span class="hint">免堆期与阶梯档按整箱连续计算；日期不一致的日费自动待定</span>
+      </div>
+      <div class="handover-form">
+        <label>箱子
+          <input id="hv-container" name="container_id" list="hv-container-options" placeholder="如 C1" autocomplete="off">
+          <datalist id="hv-container-options"></datalist>
+        </label>
+        <label>旧货主
+          <input id="hv-old" name="old_owner" placeholder="原货主">
+        </label>
+        <label>新货主
+          <input id="hv-new" name="new_owner" placeholder="交接后货主">
+        </label>
+        <label>交接记录日期一
+          <input id="hv-date-1" name="first_handover_date" type="date">
+        </label>
+        <label>交接记录日期二（可选）
+          <input id="hv-date-2" name="second_handover_date" type="date">
+        </label>
+        <div class="handover-actions">
+          <button id="hv-preview" type="button" disabled>预览分账</button>
+          <button id="hv-issue" class="primary" type="button" disabled>签发交接分账</button>
+          <button id="hv-retry" type="button" hidden>重试签发</button>
+        </div>
+      </div>
+      <div id="hv-result" class="handover-result">
+        <p class="empty">执行批次后，填写两份交接记录中的日期；无争议日期会签发，争议日期保留为待定费用。</p>
+      </div>
+    </article>
   </section>
 </main>
 {% endblock %}
